@@ -1,0 +1,64 @@
+name: bench
+
+on: [push]
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v5
+      - run: .github/scripts/uv_sync_with_retries.sh --frozen --group proxy-dev --extra google --extra proxy --extra semantic-router --extra saml
+      - run: uv pip install git+https://github.com/ashmeenkhaira/test-splitter
+      - run: uv run pytest tests/test_litellm/ --durations=20 --tb=short
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: durations
+          path: .test-durations.json
+          include-hidden-files: true
+
+  naive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      UV_PYTHON: "3.12"
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+      - run: .github/scripts/uv_sync_with_retries.sh --frozen --group proxy-dev --extra google --extra proxy --extra semantic-router --extra saml
+      - run: uv pip install git+https://github.com/ashmeenkhaira/test-splitter
+      - run: rm .test-durations.json
+      - run: uv run pytest tests/test_litellm/ --durations=20 --tb=short --shard ${{ matrix.shard }} --num-shards 4
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: durations-naive-${{ matrix.shard }}
+          path: .test-durations.shard${{ matrix.shard }}.json
+          include-hidden-files: true
+
+  timesplit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      UV_PYTHON: "3.12"
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+      - run: .github/scripts/uv_sync_with_retries.sh --frozen --group proxy-dev --extra google --extra proxy --extra semantic-router --extra saml
+      - run: uv pip install git+https://github.com/ashmeenkhaira/test-splitter
+      - run: uv run pytest tests/test_litellm/ --durations=20 --tb=short --shard ${{ matrix.shard }} --num-shards 4
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: durations-timesplit-${{ matrix.shard }}
+          path: .test-durations.shard${{ matrix.shard }}.json
+          include-hidden-files: true
